@@ -1,9 +1,17 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Function to create JWT
+const createToken = (userId) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "1h" });
+};
+
+// Normal registration
 exports.register = async (req, res) => {
   try {
-    const { email, password, username } = req.body;
+    const { email, password, username, birthday } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -14,13 +22,13 @@ exports.register = async (req, res) => {
       username,
       email,
       password,
+      birthday,
     });
 
     await newUser.save();
 
-    const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = createToken(newUser._id);
+
     res.status(201).json({
       message: "User registered successfully",
       token,
@@ -28,6 +36,7 @@ exports.register = async (req, res) => {
         id: newUser._id,
         username: newUser.username,
         email: newUser.email,
+        birthday: newUser.birthday,
       },
     });
   } catch (err) {
@@ -37,18 +46,18 @@ exports.register = async (req, res) => {
   }
 };
 
+// Normal login
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user || password !== user.password) {
+    if (!user || user.password !== password) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = createToken(user._id);
+
     res.json({
       message: "Login successful",
       token,
@@ -56,6 +65,7 @@ exports.login = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        birthday: user.birthday,
       },
     });
   } catch (err) {
@@ -63,12 +73,10 @@ exports.login = async (req, res) => {
   }
 };
 
-const { OAuth2Client } = require("google-auth-library");
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // we'll add this in your .env
-
+// Google login
 exports.googleLogin = async (req, res) => {
   try {
-    const { tokenId } = req.body; // frontend will send Google tokenId
+    const { tokenId } = req.body;
 
     const ticket = await client.verifyIdToken({
       idToken: tokenId,
@@ -80,27 +88,27 @@ exports.googleLogin = async (req, res) => {
     let user = await User.findOne({ email });
 
     if (!user) {
-      // If user doesn't exist, create new user with random password
       user = new User({
-        name,
+        username: name, // corrected to 'username' not 'name'
         email,
-        password: Math.random().toString(36).slice(-8), // Random password
+        password: "", // no password for Google users
+        birthday: "", // optional to fill later
+        profilePic: picture, // store Google profile picture
       });
       await user.save();
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = createToken(user._id);
 
     res.json({
       message: "Google login successful",
       token,
       user: {
         id: user._id,
-        username: user.username || user.name,
+        username: user.username,
         email: user.email,
-        picture: picture, // Google profile picture
+        birthday: user.birthday,
+        profilePic: user.profilePic, // sending back picture too
       },
     });
   } catch (err) {

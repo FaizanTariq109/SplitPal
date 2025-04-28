@@ -1,6 +1,6 @@
 // frontend/src/App.js
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Login from "./components/login";
+import Login from "./components/Login";
 import Signup from "./components/signup";
 import Dashboard from "./pages/dashboard";
 import React from "react";
